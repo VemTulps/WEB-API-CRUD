@@ -27,8 +27,11 @@
             break;
     
         case 'PUT':
+            updateTask($taskID, 'PUT');
+            break;
+
         case 'PATCH':
-            updateTask($taskID); // Update task with the specified ID
+            updateTask($taskID, 'PATCH');
             break;
     
         case 'DELETE':
@@ -99,7 +102,7 @@
         }
     }
     // Function to update a task by ID
-    function updateTask($param) {
+    function updateTask($param, $method) {
         global $connection;
 
         if ($param) {
@@ -108,7 +111,17 @@
             $title = $data['title'] ?? null;
             $description = $data['description'] ?? null;
 
-            if ($title || $description) {
+            if ($method === 'PUT') {
+                // For PUT, require both title and description
+                if ($title && $description) {
+                    $sql = "UPDATE task SET title = '$title', description = '$description' WHERE id = $param";
+                } else {
+                    http_response_code(400);
+                    echo json_encode(["message" => "Both title and description are required for PUT request"]);
+                    return;
+                }
+            } elseif ($method === 'PATCH') {
+                // For PATCH, update only provided fields
                 $updates = [];
                 if ($title) {
                     $updates[] = "title = '$title'";
@@ -117,17 +130,20 @@
                     $updates[] = "description = '$description'";
                 }
 
-                $sql = "UPDATE task SET " . implode(", ", $updates) . " WHERE id = $param";
-
-                if (mysqli_query($connection, $sql)) {
-                    echo json_encode(["message" => "Task updated successfully"]);
-                } else {
-                    http_response_code(500);
-                    echo json_encode(["message" => "Error updating task"]);
+                if (empty($updates)) {
+                    http_response_code(400);
+                    echo json_encode(["message" => "At least one field (title or description) is required to update"]);
+                    return;
                 }
+
+                $sql = "UPDATE task SET " . implode(", ", $updates) . " WHERE id = $param";
+            }
+
+            if (mysqli_query($connection, $sql)) {
+                echo json_encode(["message" => "Task updated successfully"]);
             } else {
-                http_response_code(400);
-                echo json_encode(["message" => "At least one field (title or description) is required to update"]);
+                http_response_code(500);
+                echo json_encode(["message" => "Error updating task"]);
             }
         } else {
             http_response_code(400);
