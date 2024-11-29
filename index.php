@@ -104,53 +104,49 @@
     // Function to update a task by ID
     function updateTask($param, $method) {
         global $connection;
-
+    
         if ($param) {
             $data = json_decode(file_get_contents("php://input"), true);
-
-            $title = $data['title'] ?? null;
-            $description = $data['description'] ?? null;
-
-            if ($method === 'PUT') {
-                // For PUT, require both title and description
-                if ($title && $description) {
-                    $sql = "UPDATE task SET title = '$title', description = '$description' WHERE id = $param";
+    
+            // Fetch the existing task data
+            $fetchSql = "SELECT * FROM task WHERE id = $param";
+            $result = mysqli_query($connection, $fetchSql);
+            
+            if ($row = mysqli_fetch_assoc($result)) {
+                if ($method === 'PUT') {
+                    // For PUT, require both title and description
+                    if (isset($data['title']) && isset($data['description'])) {
+                        $updatedData = $data;
+                    } else {
+                        http_response_code(400);
+                        echo json_encode(["message" => "Both title and description are required for PUT request"]);
+                        return;
+                    }
+                } elseif ($method === 'PATCH') {
+                    // For PATCH, update only provided fields
+                    $updatedData = array_merge($row, $data);
+                }
+    
+                $title = mysqli_real_escape_string($connection, $updatedData['title']);
+                $description = mysqli_real_escape_string($connection, $updatedData['description']);
+    
+                $sql = "UPDATE task SET title = '$title', description = '$description' WHERE id = $param";
+    
+                if (mysqli_query($connection, $sql)) {
+                    echo json_encode(["message" => "Task updated successfully"]);
                 } else {
-                    http_response_code(400);
-                    echo json_encode(["message" => "Both title and description are required for PUT request"]);
-                    return;
+                    http_response_code(500);
+                    echo json_encode(["message" => "Error updating task"]);
                 }
-            } elseif ($method === 'PATCH') {
-                // For PATCH, update only provided fields
-                $updates = [];
-                if ($title) {
-                    $updates[] = "title = '$title'";
-                }
-                if ($description) {
-                    $updates[] = "description = '$description'";
-                }
-
-                if (empty($updates)) {
-                    http_response_code(400);
-                    echo json_encode(["message" => "At least one field (title or description) is required to update"]);
-                    return;
-                }
-
-                $sql = "UPDATE task SET " . implode(", ", $updates) . " WHERE id = $param";
-            }
-
-            if (mysqli_query($connection, $sql)) {
-                echo json_encode(["message" => "Task updated successfully"]);
             } else {
-                http_response_code(500);
-                echo json_encode(["message" => "Error updating task"]);
+                http_response_code(404);
+                echo json_encode(["message" => "Task not found"]);
             }
         } else {
             http_response_code(400);
             echo json_encode(["message" => "Task ID is required"]);
         }
     }
-
     // Function to delete a task by ID
     function deleteTask($param) {
         global $connection;
